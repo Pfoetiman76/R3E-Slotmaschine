@@ -220,6 +220,7 @@
         </span>
       </label>
       <button id="champBtn">AUSSCHREIBEN!</button>
+      <button id="champExportBtn" disabled style="background:linear-gradient(180deg,#4a4b4f 0%,#2e2f32 55%,#1c1d1f 100%);box-shadow:0 5px 0 #101112;">TXT EXPORTIEREN</button>
     </fieldset>
 
     <h3>STARTFELD</h3>
@@ -551,6 +552,7 @@ tabChamp.addEventListener("click", () => showTab("champ"));
 
 /* Meisterschaft generieren */
 const champBtn = $("champBtn");
+let lastChamp = null;
 champBtn.addEventListener("click", () => {
   const mode = $("champMode").value;
   const numClasses = mode === "multi" ? parseInt($("champNumClasses").value, 10) : 1;
@@ -592,9 +594,11 @@ champBtn.addEventListener("click", () => {
 
   /* Startfeld: pro Klasse auto. aus Kapazität ableiten oder feste Obergrenze */
   const perClassAuto = Math.max(1, Math.floor(minGrid / classes.length));
+  const fieldData = {};
   $("champField").innerHTML = classes.map(cls => {
     const cap = maxCars === null ? perClassAuto : maxCars;
     let list = byClass[cls].slice().sort(() => Math.random() - 0.5).slice(0, cap).sort((a, b) => a[0].localeCompare(b[0], "de"));
+    fieldData[cls] = list.map(c => ({ name: c[0], free: c[2] === 1 }));
     return '<div class="classrow"><span class="cls">' + cls.toUpperCase() + '</span><b>' +
       list.length + ' Fahrzeuge:</b> ' + list.map(c => c[0]).join(", ") + '</div>';
   }).join("") +
@@ -602,16 +606,98 @@ champBtn.addEventListener("click", () => {
     minGrid + ' Fahrzeuge</b> – entspricht bei ' + classes.length + ' Klasse(n) ca. <b style="color:#fff;">' +
     perClassAuto + ' Fahrzeug(en) pro Klasse</b></div>';
 
+  /* Kalender aufbauen und für den Export zwischenspeichern */
+  const DISTANCES = ["10 Minuten","15 Minuten","20 Minuten","25 Minuten","30 Minuten","45 Minuten"];
+  const WEATHER  = ["Klar","Leicht bewölkt","Stark bewölkt"];
+  const TIMES   = ["Vormittag (10:00)","Mittag (13:00)","Nachmittag (15:00)","Abend (18:00)","Nacht (21:00)"];
+  const calData = [];
   $("champCalendar").innerHTML = picked.map((t, i) => {
     const layout = t[1][Math.floor(Math.random() * t[1].length)];
+    const dist = DISTANCES[Math.floor(Math.random() * DISTANCES.length)];
+    const weather = WEATHER[Math.floor(Math.random() * WEATHER.length)];
+    const time = TIMES[Math.floor(Math.random() * TIMES.length)];
+    calData.push({ round: i + 1, track: t[0], layout: layout, layoutsAvailable: t[1], maxGrid: t[3], free: t[2] === 1, distance: dist, weather: weather, timeOfDay: time });
     return "<li><span class='round'>" + (i + 1) + ".</span><b>" + t[0] + "</b>" +
       (t[1].length > 1 ? " – " + layout : "") +
       " <span style='color:#9a9da2;'>(max. " + t[3] + " Fzg.)</span>" +
-      (t[2] ? ' <span class="cls">GRATIS</span>' : "") + "</li>";
+      (t[2] ? ' <span class="cls">GRATIS</span>' : "") +
+      "<br /><span style='color:#b9bcc2;'>" + dist + " · " + weather + " · " + time + "</span></li>";
   }).join("");
+
+  /* Generierte Meisterschaft für den JSON-Export bereithalten */
+  lastChamp = {
+    generator: "RaceRoom Glücksspiel-Automat",
+    generated: new Date().toISOString(),
+    mode: mode === "multi" ? "Multi Class" : "Single Class",
+    numClasses: classes.length,
+    freeContentOnly: freeOnlyChamp,
+    gridCapacityMin: minGrid,
+    carsPerClass: maxCars === null ? perClassAuto : Math.min(maxCars, 999),
+    field: fieldData,
+    calendar: calData
+  };
+  $("champExportBtn").disabled = false;
 
   tickSound(660);
   setTimeout(() => tickSound(880), 150);
+});
+
+/* TXT-Export: Checkliste für die manuelle Anlage im Spiel */
+$("champExportBtn").addEventListener("click", () => {
+  if (!lastChamp) return;
+  const pad = (n, w) => String(n).padStart(w, " ");
+  const lines = [];
+  lines.push("==============================================================");
+  lines.push("  RACEROOM-MEISTERSCHAFT (Glücksspiel-Automat)");
+  lines.push("  Erzeugt am: " + new Date(lastChamp.generated).toLocaleString("de-DE"));
+  lines.push("==============================================================");
+  lines.push("");
+  lines.push("Reglement");
+  lines.push("---------");
+  lines.push("Modus:                " + lastChamp.mode);
+  lines.push("Klassen:              " + lastChamp.numClasses);
+  lines.push("Fahrzeuge je Klasse:  " + lastChamp.carsPerClass);
+  lines.push("Kleinste Startbox:    " + lastChamp.gridCapacityMin + " Fahrzeuge");
+  lines.push("Nur kostenlose Inhalte: " + (lastChamp.freeContentOnly ? "ja" : "nein"));
+  lines.push("");
+  lines.push("Startfeld");
+  lines.push("---------");
+  Object.keys(lastChamp.field).forEach(cls => {
+    lines.push("");
+    lines.push("Klasse: " + cls + "  (" + lastChamp.field[cls].length + " Fahrzeuge)");
+    lastChamp.field[cls].forEach((c, i) => {
+      lines.push("  [ ] " + pad(i + 1 + ".", 4) + c.name + (c.free ? "  (GRATIS)" : ""));
+    });
+  });
+  lines.push("");
+  lines.push("Rennkalender");
+  lines.push("------------");
+  lastChamp.calendar.forEach(r => {
+    lines.push("");
+    lines.push("Rennen " + r.round);
+    lines.push("  [ ] Strecke:  " + r.track + (r.free ? "  (GRATIS)" : ""));
+    lines.push("  [ ] Layout:   " + r.layout);
+    if (r.layoutsAvailable.length > 1) {
+      lines.push("      Verfügbare Layouts: " + r.layoutsAvailable.join(", "));
+    }
+    lines.push("  [ ] Starterfeld: max. " + r.maxGrid + " Fahrzeuge");
+    lines.push("  [ ] Distanz:   " + r.distance);
+    lines.push("  [ ] Wetter:    " + r.weather);
+    lines.push("  [ ] Tageszeit: " + r.timeOfDay);
+  });
+  lines.push("");
+  lines.push("==============================================================");
+  lines.push("  Checkliste im Spiel: Meisterschaft anlegen, Klassen und");
+  lines.push("  Fahrzeuge auswaehlen, dann Rennen fuer Rennen abhaken.");
+  lines.push("==============================================================");
+  const blob = new Blob([lines.join("\r\n")], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "raceroom-meisterschaft.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 });
 </script>
 </body>
