@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RaceRoom Glücksspiel-Automat</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(ellipse at 50% 0%, #2b2b2e 0%, #17181a 55%, #0c0c0d 100%);
+    color: #f2f2f2;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 12px;
+  }
+  .machine {
+    width: 100%;
+    max-width: 760px;
+    background: linear-gradient(180deg, #26272a 0%, #191a1c 60%, #101112 100%);
+    border: 4px solid #c9ccd1;
+    border-radius: 24px;
+    box-shadow: 0 0 0 6px #e2001a, 0 24px 60px rgba(0,0,0,.65), inset 0 2px 0 rgba(255,255,255,.08);
+    padding: 28px 26px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .machine::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(115deg, rgba(255,255,255,.02) 0 14px, transparent 14px 28px);
+    pointer-events: none;
+  }
+  .marquee {
+    text-align: center;
+    letter-spacing: 4px;
+    font-weight: 800;
+    font-size: 22px;
+    color: #ffffff;
+    background: #e2001a;
+    border-radius: 10px;
+    padding: 8px 0 6px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.45);
+    margin-bottom: 4px;
+  }
+  .marquee small { display:block; font-size: 11px; letter-spacing: 2px; color:#ffd6db; text-shadow:none; font-weight:600; }
+  .lamps { display:flex; justify-content:center; gap:10px; margin: 10px 0 18px; }
+  .lamp { width:9px; height:9px; border-radius:50%; background:#3a3a3e; box-shadow:0 0 6px rgba(255,255,255,.15); }
+  .lamp.on { background:#e2001a; box-shadow:0 0 10px #e2001a; }
+  .reels { display:grid; grid-template-columns: 1.25fr 1.15fr .9fr; gap: 12px; }
+  @media (max-width: 620px){ .reels { grid-template-columns: 1fr; } }
+  .reel {
+    background: linear-gradient(180deg, #131314 0%, #1d1e20 50%, #131314 100%);
+    border: 3px solid #c9ccd1;
+    border-radius: 14px;
+    min-height: 150px;
+    padding: 12px 10px;
+    display: flex; flex-direction: column; align-items:center; justify-content:center;
+    position: relative;
+    box-shadow: inset 0 12px 22px rgba(0,0,0,.6), inset 0 -12px 22px rgba(0,0,0,.6);
+    overflow: hidden;
+  }
+  .reel .label {
+    position:absolute; top:7px; left:0; right:0; text-align:center;
+    font-size: 10px; letter-spacing: 3px; color:#e2001a; font-weight:700;
+  }
+  .reel .value {
+    font-size: 17px; font-weight: 700; text-align:center; color:#ffffff;
+    text-shadow: 0 0 10px rgba(226,0,26,.35); padding: 14px 4px 0; line-height:1.3;
+  }
+  .reel .sub { margin-top:6px; font-size: 11px; color:#b9bcc2; font-weight:600; letter-spacing:1px; }
+  .reel.spin .value { filter: blur(2px); opacity:.85; color:#d8d8d8; }
+  .reel.won { border-color:#e2001a; box-shadow: 0 0 22px rgba(226,0,26,.55), inset 0 12px 22px rgba(0,0,0,.6), inset 0 -12px 22px rgba(0,0,0,.6); }
+  .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:center; margin-top:20px; }
+  .lever {
+    cursor:pointer; border:none; border-radius: 999px;
+    padding: 16px 44px; font-size: 20px; font-weight: 800; letter-spacing: 3px;
+    color: #ffffff;
+    background: linear-gradient(180deg, #ff2b40 0%, #e2001a 55%, #a80014 100%);
+    box-shadow: 0 6px 0 #7d0010, 0 14px 26px rgba(0,0,0,.5);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .lever:active { transform: translateY(5px); box-shadow: 0 1px 0 #7d0010, 0 8px 16px rgba(0,0,0,.5); }
+  .lever:disabled { filter: grayscale(.55) brightness(.8); cursor:wait; }
+  .filters { display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin-top:16px; font-size:13px; color:#d6d8dc; }
+  .filters label { display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none; }
+  .filters select {
+    background:#1d1e20; color:#f2f2f2; border:1px solid #55575c; border-radius:8px; padding:5px 8px; font-size:13px;
+  }
+  .filters input[type=checkbox]{ accent-color:#e2001a; width:16px; height:16px; }
+  .history { margin-top: 18px; }
+  .history h3 { text-align:center; font-size:11px; letter-spacing:3px; color:#e2001a; margin-bottom:8px; }
+  .history ul { list-style:none; display:flex; flex-direction:column; gap:6px; }
+  .history li {
+    font-size:12.5px; text-align:center; color:#d6d8dc; background:rgba(29,30,32,.85);
+    border:1px solid #3a3b3e; border-radius:8px; padding:6px 10px;
+  }
+  .history li b { color:#ffffff; font-weight:700; }
+  .note { margin-top:14px; text-align:center; font-size:10.5px; color:#9a9da2; line-height:1.5; }
+  .result {
+    margin-top:18px; text-align:center; font-size:15px; font-weight:700; color:#ffffff;
+    min-height:22px; text-shadow:0 0 10px rgba(226,0,26,.45);
+  }
+  .tabs { display:flex; gap:10px; justify-content:center; margin: 4px 0 18px; }
+  .tab {
+    cursor:pointer; border:2px solid #55575c; background:#1d1e20; color:#d6d8dc;
+    border-radius:999px; padding:8px 22px; font-size:13px; font-weight:700; letter-spacing:2px;
+    transition: all .12s ease;
+  }
+  .tab.active { border-color:#e2001a; background:#e2001a; color:#ffffff; box-shadow:0 0 14px rgba(226,0,26,.5); }
+  .champ { display:none; }
+  .champ fieldset {
+    border:1px solid #3a3b3e; border-radius:14px; padding:16px 16px 14px; margin-bottom:14px;
+    display:flex; flex-wrap:wrap; gap:16px; justify-content:center; align-items:flex-end;
+  }
+  .champ legend { font-size:10px; letter-spacing:3px; color:#e2001a; font-weight:700; padding:0 8px; }
+  .champ .field { display:flex; flex-direction:column; gap:6px; font-size:12px; color:#d6d8dc; font-weight:600; }
+  .champ select, .champ input[type=number] {
+    background:#1d1e20; color:#f2f2f2; border:1px solid #55575c; border-radius:8px; padding:6px 8px; font-size:13px; min-width:120px;
+  }
+  .champ button {
+    cursor:pointer; border:none; border-radius:999px; padding:12px 30px; font-size:15px; font-weight:800; letter-spacing:2px;
+    color:#fff; background: linear-gradient(180deg, #ff2b40 0%, #e2001a 55%, #a80014 100%);
+    box-shadow:0 5px 0 #7d0010, 0 10px 20px rgba(0,0,0,.5); transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .champ button:active { transform: translateY(4px); box-shadow:0 1px 0 #7d0010; }
+  .champ .classes { margin:4px 0 14px; display:flex; flex-direction:column; gap:8px; }
+  .champ .classrow {
+    background:rgba(29,30,32,.85); border:1px solid #3a3b3e; border-radius:10px; padding:9px 12px;
+    font-size:12.5px; color:#d6d8dc; line-height:1.45;
+  }
+  .champ .classrow b { color:#fff; }
+  .champ .classrow .cls { color:#ff4d63; font-weight:800; letter-spacing:1px; margin-right:6px; }
+  .cal { list-style:none; display:flex; flex-direction:column; gap:6px; }
+  .cal li {
+    font-size:12.5px; text-align:center; color:#d6d8dc; background:rgba(29,30,32,.85);
+    border:1px solid #3a3b3e; border-radius:8px; padding:7px 10px;
+  }
+  .cal li b { color:#ffffff; }
+  .cal li .round { color:#e2001a; font-weight:800; margin-right:6px; }
+  .champ h3 { text-align:center; font-size:11px; letter-spacing:3px; color:#e2001a; margin:14px 0 8px; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="machine">
+  <div class="marquee">RACE ROOM<br />GLÜCKSSPIEL-AUTOMAT<small>FAHRZEUG &bull; STRECKE &bull; LAYOUT</small></div>
+  <div class="lamps" id="lamps"></div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabSingle">EINZELRENNEN</div>
+    <div class="tab" id="tabChamp">MEISTERSCHAFT</div>
+  </div>
+
+  <div id="panelSingle">
+  <div class="reels">
+    <div class="reel" id="reelCar">
+      <div class="label">FAHRZEUG</div>
+      <div class="value" id="valCar">Drücken zum Starten</div>
+      <div class="sub" id="subCar"></div>
+    </div>
+    <div class="reel" id="reelTrack">
+      <div class="label">STRECKE</div>
+      <div class="value" id="valTrack">Viel Glück!</div>
+      <div class="sub" id="subTrack"></div>
+    </div>
+    <div class="reel" id="reelLayout">
+      <div class="label">LAYOUT</div>
+      <div class="value" id="valLayout">–</div>
+      <div class="sub" id="subLayout"></div>
+    </div>
+  </div>
+
+  <div class="result" id="result"></div>
+
+  <div class="controls">
+    <button class="lever" id="lever">ZIEHEN!</button>
+  </div>
+
+  <div class="filters">
+    <label><input type="checkbox" id="freeOnly" /> Nur kostenlose Inhalte</label>
+    <label>Klasse:
+      <select id="classFilter"><option value="">Alle Klassen</option></select>
+    </label>
+  </div>
+
+  <div class="history">
+    <h3>LETZTE ZIEHUNGEN</h3>
+    <ul id="historyList"></ul>
+  </div>
+  </div><!-- /panelSingle -->
+
+  <div class="champ" id="panelChamp">
+    <fieldset>
+      <legend>REGLEMENT</legend>
+      <label class="field">Modus
+        <select id="champMode">
+          <option value="single">Single Class</option>
+          <option value="multi">Multi Class</option>
+        </select>
+      </label>
+      <label class="field">Anzahl Klassen (Multi Class)
+        <select id="champNumClasses">
+          <option>2</option><option>3</option><option>4</option><option selected>5</option>
+        </select>
+      </label>
+      <label class="field">Anzahl Rennen
+        <input type="number" id="champRaces" min="1" max="24" value="6" />
+      </label>
+      <label class="field">Fahrzeuge pro Klasse
+        <select id="champMaxCars">
+          <option value="auto" selected>Aus Streckenkapazität</option>
+          <option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="999">Alle</option>
+        </select>
+      </label>
+      <label class="field">&nbsp;
+        <span style="display:flex;align-items:center;gap:7px;flex-direction:row;font-size:13px;">
+          <input type="checkbox" id="champFreeOnly" style="accent-color:#e2001a;width:16px;height:16px;" /> Nur kostenlose Inhalte
+        </span>
+      </label>
+      <button id="champBtn">AUSSCHREIBEN!</button>
+    </fieldset>
+
+    <h3>STARTFELD</h3>
+    <div class="classes" id="champField"></div>
+
+    <h3>RENNKALENDER</h3>
+    <ul class="cal" id="champCalendar"></ul>
+  </div>
+
+  <div class="note">
+    Datenstand: offizieller RaceRoom-Store, November 2026 (73 Strecken, 178 Layouts, ca. 150 Fahrzeuge).<br />
+    Layout-Namen und maximale Starterfelder sind teils Schätzwerte, da nicht offiziell dokumentiert – beide können im Datenbereich dieser Datei korrigiert werden.
+  </div>
+</div>
+
+<script>
+/* ================= DATENBEREICH – hier können Einträge ergänzt oder korrigiert werden ================= */
+
+/* Fahrzeuge: [Name, Klasse, kostenlos(1/0)] */
+const CARS = [
+["Porsche 911 GT3 R (992.2) DTM","DTM 2026",0],["Ford Mustang GT3 EVO DTM","DTM 2026",0],
+["Lamborghini Temerario GT3 DTM","DTM 2026",0],["Mercedes-AMG GT3 2020 DTM","DTM",0],
+["Aston Martin Vantage AMR GT3 EVO DTM","DTM 2026",0],["BMW M4 GT3 EVO DTM","DTM",0],
+["McLaren 720S GT3 EVO DTM","DTM",0],["LRT NXT1","NXT Gen Cup",0],
+["Alpine A110 GT4+","GTR 4",0],["Porsche 911 GT3 R (992) DTM","DTM",0],
+["Lamborghini Huracán GT3 EVO II DTM","DTM",0],["Audi R8 LMS GT3 EVO II DTM","DTM",0],
+["AMG-Mercedes CLK-DTM 2002","DTM 2002",0],["Abt-Audi TT-R","DTM 2002",0],
+["Opel Astra V8 Coupé","DTM 2002",0],["BMW M Hybrid V8","Hypercars",0],
+["Lamborghini SC63","Hypercars",0],["Porsche 963","Hypercars",0],
+["Renault Laguna Super Touring","Super Touring",0],["Peugeot 406 Super Touring 1998","Super Touring",0],
+["Ford Mondeo Super Touring","Super Touring",0],["Alfa Romeo 156 Super Touring","Super Touring",0],
+["Opel Vectra Super Touring","Super Touring",0],["Honda Accord Super Touring","Super Touring",0],
+["BMW 320i E36 Super Touring","Super Touring",0],["Audi A4 Super Touring 1995","Super Touring",0],
+["Volvo 850 Super Touring","Super Touring",0],["Volvo S40 Super Touring","Super Touring",0],
+["Opel Calibra V6 DTM","DTM 1995",0],["Alfa Romeo 155 TI DTM 1995","DTM 1995",0],
+["AMG-Mercedes C-Klasse DTM 1995","DTM 1995",0],["BMW M2 CS Racing 2021","BMW M2 Cup",0],
+["BMW M8 GTE","GTE",0],["Porsche 911 RSR 2019","GTE",0],
+["BMW M4 GT4 (G82)","GTR 4",0],["BMW M4 GT4 (F82)","GTR 4",0],
+["Porsche 911 GT3 Cup (992)","Porsche Carrera Cup",0],["Porsche 911 GT3 Cup (992) Endurance","Porsche 992 GT3 Cup",0],
+["Porsche 911 GT3 Cup (991.2)","Porsche Carrera Cup",0],["Porsche 911 GT3 Cup (991.2) Endurance","Porsche 991.2 GT3 Cup",0],
+["Porsche 911 GT3 Cup","Porsche Carrera Cup",0],["Porsche 911 Carrera Cup (964)","Porsche 964 Cup",0],
+["Porsche 944 Turbo Cup","Porsche 944 Turbo Cup",0],
+["Lamborghini Huracán GT3 EVO II","GTR 3",0],["Audi R8 LMS GT3 EVO II","GTR 3",0],
+["Porsche 911 GT3 R (992)","GTR 3",0],["McLaren 720S GT3","GTR 3",0],
+["BMW M4 GT3","GTR 3",0],["Mercedes-AMG GT3 2020","GTR 3",0],
+["Mercedes AMG GT3","GTR 3",0],["Mercedes-Benz SLS AMG GT3","GTR 3",0],
+["Bentley Continental GT3 EVO","GTR 3",0],["Bentley Continental GT3","GTR 3",0],
+["Audi R8 LMS GT3 EVO","GTR 3",0],["Audi R8 LMS","GTR 3",0],
+["Audi R8 LMS Ultra","GTR 3",0],["Callaway Corvette C7 GT3-R","GTR 3",0],
+["BMW M6 GT3","GTR 3",0],["BMW Z4 GT3","GTR 3",0],
+["Chevrolet Camaro GT3","GTR 3",0],["Chevrolet Corvette Z06.R GT3","GTR 3",0],
+["Ford GT GT3","GTR 3",0],["Ford Mustang GT3","GTR 3",0],
+["Nissan GT-R GT3","GTR 3",0],["McLaren 650S GT3","GTR 3",0],
+["McLaren MP4-12C GT3","GTR 3",0],["BMW Alpina B6 GT3","GTR 3",0],
+["P4-5 Competizione GT3","GTR 3",0],["Porsche 911 GT3 R (2019)","GTR 3",0],
+["Audi R8 LMS GT2 2019","GT2",0],["Porsche 911 GT2 RS Clubsport","GT2",0],
+["KTM X-BOW GT2","GT2",0],["Mercedes AMG GT4 2020","GTR 4",0],
+["Porsche 718 Cayman GT4 Clubsport","GTR 4",0],["Porsche Cayman GT4 CS MR","GTR 4",0],
+["Porsche Cayman GT4 Clubsport","Cayman GT4 Trophy",0],["Lotus Evora GT4","GTR 4",0],
+["KTM X-Bow GT4","GTR 4",0],["McLaren 570S GT4","GTR 4",0],
+["Audi R8 LMS GT4 2020","GTR 4",0],["KTM X-BOW GTX","KTM GTX",0],
+["KTM X-Bow RR","KTM X-Bow RR Cup",0],["Mazda RT24 P DPi","Mazda DPI",0],
+["Praga R1","Praga R1",0],["Mazda MX-5 Cup 2019 ND2","Mazda MX-5 Cup",0],
+["Crosslé 9S","Crosslé",0],["Crosslé 90F","Crosslé",0],
+["Formula RaceRoom X-22","FR X-22 Cup",0],["Formula RaceRoom X-17","FR X-17 Cup",0],
+["Formula RR 90 V8","FR X-90 Cup",0],["Formula RR 90 V12","FR X-90 Cup",0],
+["Formula RR 90 V10","FR X-90 Cup",0],["Formula RaceRoom US","FR US Cup",0],
+["Formula RaceRoom 3","FR3 Cup",0],["Formula RaceRoom 2","FR2 Cup",0],
+["Formula RaceRoom Junior","FRJ Cup",1],["Tatuus F4","Tatuus F4 Cup",0],
+["Lynk & Co 03 TCR","WTCR",0],["Hyundai Elantra TCR 2022","WTCR 2022",0],
+["Hyundai Elantra TCR 2021","WTCR 2021",0],["Hyundai i30 N TCR","WTCR",0],
+["Honda Civic TCR","WTCR",0],["CUPRA Leon Competición","WTCR",0],
+["CUPRA TCR","WTCR",0],["Audi RS 3 LMS 2021","WTCR",0],
+["Audi RS 3 LMS","WTCR",0],["Alfa Romeo Giulietta TCR","WTCR",0],
+["Renault Mégane RS TCR","WTCR 2020",0],["Peugeot 308 TCR","WTCR 2018",0],
+["Volkswagen Golf GTI TCR","WTCR",0],["Lada Vesta TCR","WTCR 2021",0],
+["CUPRA Leon e-Racer","CUPRA Leon e-Racer",0],["Honda Civic TCR (TCC)","Touring Cars Cup",0],
+["Opel Astra","Touring Cars Cup",0],["Hyundai i30 N TCR (TCC)","Touring Cars Cup",0],
+["CUPRA Leon Competición (TCC)","Touring Cars Cup",0],["Lada Vesta","Touring Cars Cup",1],
+["BMW E90 320 TC","WTCC 2013",0],["Chevrolet Cruze WTCC","WTCC 2013",0],
+["Honda Civic WTCC","WTCC 2013",0],["Lada Granta WTCC","WTCC 2013",0],
+["SEAT León WTCC","WTCC 2013",0],["Chevrolet RML Cruze TC1","WTCC 2014–2017",0],
+["Lada Granta 1.6T","WTCC 2014",0],["Chevrolet RML Cruze TC1 2015/16","WTCC",0],
+["Honda Civic WTCC 2015/16","WTCC",0],["Lada Vesta WTCC 2015/16","WTCC",0],
+["Volvo S60 Polestar TC1","WTCC",0],["BMW M4 DTM 2020","DTM 2020",0],
+["Audi RS 5 DTM 2020","DTM 2020",0],["BMW M4 DTM 2016","DTM 2016",0],
+["Audi RS 5 DTM 2016","DTM 2016",0],["Mercedes-AMG C 63 DTM 2016","DTM 2016",0],
+["Audi RS 5 DTM 2015","DTM 2015",0],["Mercedes-AMG C63 DTM","DTM 2015",0],
+["BMW M4 DTM 2015","DTM 2015",0],["BMW M6 GT3 DTM","DTM 2021",0],
+["BMW M4 DTM","DTM 2014",0],["Audi RS 5 DTM 2014","DTM 2014",0],
+["DTM Mercedes AMG C Coupé 14","DTM 2014",0],["Audi RS 5 DTM","DTM 2013",0],
+["BMW M3 DTM","DTM 2013",0],["DTM Mercedes AMG C-Coupé","DTM 2013",0],
+["BMW M6 GT3 DTM (2021)","DTM 2021",0],["AMG-Mercedes CLK DTM","DTM 2003",0],
+["AMG-Mercedes C-Klasse DTM 2005","C-Klasse DTM 2005",0],
+["RaceRoom Truck","Truck Racing",0],["Volkswagen ID. R","VW ID. R",0],
+["Ford Mustang Mach-E 1400","Ford Mustang Mach E",0],
+["BMW G82 M4 Drift","Drift",0],["BMW E30 M3 Drift","Drift",0],
+["Mini Cooper S MK.3","Group 2",0],["Abarth 1000 TCR","Group 2",0],
+["Volkswagen Scirocco Gr.2","Group 2",0],["NSU TTS","Group 2",0],
+["Porsche 934 Turbo RSR","Group 4",0],["BMW M1 Gr. 4","Group 4",0],
+["Porsche 962 C Team Joest","Group C",0],["Nissan R90CK","Group C",0],
+["Audi R18","P1",0],["Radical SR9 AER","P2",0],["Radical SR9 Judd","P2",0],
+["Chevrolet Daytona Prototype","P2",0],["BMW 320 Turbo","Group 5",0],
+["Zakspeed Capri","Group 5",0],["Fabcar 935","Group 5",0],
+["Nissan Silvia Turbo","Group 5",0],["Nissan Skyline 2000RS","Group 5",0],
+["Chevrolet Corvette Greenwood 1977","Group 5",0],["Chevrolet Dekon Monza","Group 5",0],
+["Audi 90 Quattro","GTO Classics",0],["Ford Mustang IMSA GTO","GTO Classics",0],
+["Nissan 300ZX Z32","GTO Classics",0],["Audi V8 DTM","DTM 1992",0],
+["BMW M3 Sport Evolution","DTM 1992",0],["Ford Mustang GT DTM","DTM 1992",0],
+["Mercedes 190E Evo II DTM","DTM 1992",0],["Opel Omega 3000 Evo500","DTM 1992",0],
+["BMW M3 E30 Gr. A","Touring Classics",0],["BMW 635 CSI","Touring Classics",0],
+["Volvo 240 Turbo","Touring Classics",0],["Nissan Skyline GTR R32","Touring Classics",0],
+["BMW M1 Procar","Procar",0],["Pagani Zonda R","Zonda R Cup",0],
+["Carlsson SLK 340 JUDD","Hillclimb Icons",0],["Carlsson C25 GT","German Nationals",0],
+["McLaren-Mercedes SLR 722 GT","German Nationals",0],
+["Cadillac CTS-V.R","GTR 2",0],["Chevrolet Corvette C6.R ZR1","GTR 2",0],
+["RUF RT12R","GTR 2",0],["BMW M3 E92 GT","GTR 2",0],["P4-5 Competizione GT2","GTR 2",0],
+["Ford GT GT1","GTR 1",0],["Nissan GT-R GT1","GTR 1",0],
+["RUF CTR3","GTR 1",0],["Gumpert Apollo Sport","GTR 1",0],
+["Koenigsegg CCGT","GTR 1",0],["Saleen S7R","GTR 1",1],
+["BMW 134 Judd V8","Hillclimb Icons",1],["Aquila CR1 Sports GT","Aquila CR1 Cup",1],
+["Canhard R51","Silhouette Series",1],["Canhard R52","Silhouette Series",1],
+["Cougar C14-1","Silhouette Series",1],["Cougar C14-2","Silhouette Series",1],
+["Mistral M530","P1",1],["Mistral M531","P2",1],
+["DMD P20","P1",1],["DMD P21","P2",1],["Alpine A110 Cup","Alpine A110 Cup",1]
+];
+
+/* Strecken: [Name, Layouts, kostenlos(1/0), max. Starterfeld (Schätzwerte – im Datenbereich korrigierbar)] */
+const TRACKS = [
+["Portimao Circuit",["Grand Prix","Moto","Chicane","Short"],1,40],
+["Sepang",["Grand Prix","North","South"],1,40],
+["Twin Ring Motegi",["Road Course","East Course","West Course"],1,40],
+["WeatherTech Raceway Laguna Seca",["Grand Prix"],1,32],
+["Mantorp Park",["Long Circuit","Short Circuit"],1,24],
+["Stowe Circuit",["Long","Short"],1,16],
+["RaceRoom Raceway",["Grand Prix","Classic","Classic Sprint","National","Bridge","Drift Area"],1,32],
+["Lakeview Hillclimb",["Full Run","Reverse"],1,8],
+["Circuit de Spa-Francorchamps",["Grand Prix","Endurance","Grand Prix 1995","Endurance 1995"],0,45],
+["Fliegerhorst Wunstorf",["Vollständige Strecke"],0,30],
+["Glasbachrennen",["Vollständiger Lauf"],0,8],
+["Adria International Raceway 2003",["Grand Prix"],0,30],
+["Adria International Raceway 2021",["Grand Prix"],0,30],
+["Alemannenring",["Grand Prix"],0,32],
+["Anderstorp Raceway",["Long Course","Short Course"],0,30],
+["Autodrom Most",["Grand Prix"],0,32],
+["AVUS",["Grand Prix","Kurzkurs"],0,24],
+["Bathurst Circuit",["Mount Panorama"],0,30],
+["Bilster Berg",["Variante 1","Variante 2","Variante 3","Variante 4","Variante 5"],0,24],
+["Brands Hatch Grand Prix",["Grand Prix"],0,30],
+["Brands Hatch Indy",["Indy"],0,20],
+["Brno",["Grand Prix","Kurz"],0,36],
+["Chang International Circuit",["Grand Prix","Kurz"],0,32],
+["Circuit de Charade",["Grand Prix","Kurz"],0,28],
+["Circuit de Pau-Ville",["Grand Prix"],0,20],
+["Circuit Zandvoort",["Grand Prix","Kurz"],0,32],
+["Circuit Zandvoort 2019",["Grand Prix","Sprintkurs","Ovalkurs"],0,36],
+["Circuit Zolder",["Grand Prix"],0,30],
+["Daytona International Speedway",["Oval","Road Course","Continental Course"],0,40],
+["DEKRA Lausitzring",["Grand Prix","Sprintkurs","Ovalkurs","Kurzkurs 1","Kurzkurs 2"],0,36],
+["Donington Park",["Grand Prix","National"],0,32],
+["Dubai Autodrome",["Grand Prix","International","National","Club"],0,36],
+["Estoril Circuit",["Grand Prix","Kurz"],0,32],
+["Falkenberg Motorbana",["Grand Prix"],0,24],
+["Fliegerhorst Diepholz",["Full Circuit"],0,24],
+["Gelleråsen Arena",["Grand Prix","Kurz"],0,24],
+["Genting Highlands Highway",["Grand Prix","Sprintkurs","Kurzkurs","Bergkurs"],0,20],
+["Hockenheimring",["Grand Prix","Kurz","Junior"],0,32],
+["Hockenheimring Classic",["Grand Prix","Kurz"],0,28],
+["Hungaroring",["Grand Prix"],0,36],
+["Imola",["Grand Prix"],0,36],
+["Indianapolis Motor Speedway",["Oval","Grand Prix","Infield"],0,40],
+["Indianapolis 2012",["Oval","Grand Prix"],0,40],
+["Interlagos",["Grand Prix"],0,32],
+["Knutstorp Ring",["Grand Prix"],0,24],
+["Macau",["Guia"],0,24],
+["Mid-Ohio Sports Car Course",["Grand Prix","Sprintkurs","Clubkurs"],0,32],
+["Moscow Raceway",["Grand Prix","National","Kurzkurs"],0,28],
+["Motorland Aragón",["Grand Prix","Sprintkurs 1","Sprintkurs 2","Kurzkurs 1","Kurzkurs 2","Kurzkurs 3"],0,36],
+["Motorsport Arena Oschersleben 2024",["Grand Prix","Sprintkurs","Kurzkurs"],0,28],
+["Ningbo International Circuit",["Grand Prix","Sprintkurs 1","Sprintkurs 2","Kurzkurs 1","Kurzkurs 2"],0,32],
+["Nogaro Circuit Paul Armagnac",["Grand Prix","Kurz","Sprintkurs","Kurzkurs"],0,28],
+["Nordschleife",["Nordschleife","Touristenfahrt","Vollrunde (GP + Nordschleife)","GP-Sprint"],0,45],
+["Norisring",["Grand Prix"],0,28],
+["Nürburgring",["Grand Prix","Sprint A","Sprint B","Müllenbachschleife","Vollrunde"],0,36],
+["Paul Ricard",["1A","1B","2A","2B","Gesamtkurs"],0,40],
+["RaceRoom Hillclimb",["Aufwärtslauf","Umgekehrt"],0,8],
+["Red Bull Ring Spielberg",["Grand Prix","Sprint","Junior"],0,32],
+["Road America",["Grand Prix"],0,40],
+["Sachsenring",["Grand Prix"],0,28],
+["Salzburgring",["Grand Prix"],0,32],
+["Shanghai International Circuit",["Grand Prix","Kurz","Kurzkurs"],0,36],
+["Silverstone Circuit",["Grand Prix","International","National","Bridge Grand Prix"],0,40],
+["Silverstone Circuit Classic",["Grand Prix","International","National"],0,36],
+["Slovakia Ring",["Grand Prix"],0,36],
+["Sonoma Raceway",["Grand Prix","NASCAR","Kurzkurs","Driftkurs"],0,32],
+["Suzuka Circuit",["Grand Prix","Ost","West"],0,36],
+["TT Circuit Assen",["Grand Prix","Kurz","Kurzkurs"],0,32],
+["Twin Forest",["Grand Prix"],0,20],
+["Vålerbanen",["Grand Prix"],0,24],
+["Vallelunga",["Grand Prix","Kurz","Sprintkurs","Kurzkurs"],0,32],
+["Watkins Glen International",["Grand Prix (Boot)","Klassischer Boot","Kurzkurs","The Ninety"],0,36],
+["Zhejiang Circuit",["Grand Prix","Kurz"],0,28],
+["Zhuhai Circuit",["Grand Prix"],0,32]
+];
+
+/* ================= AUTOMAT-LOGIK ================= */
+
+const $ = id => document.getElementById(id);
+const reels = { car: $("reelCar"), track: $("reelTrack"), layout: $("reelLayout") };
+const vals  = { car: $("valCar"), track: $("valTrack"), layout: $("valLayout") };
+const subs  = { car: $("subCar"), track: $("subTrack"), layout: $("subLayout") };
+const lever = $("lever"), result = $("result"), historyList = $("historyList");
+const freeOnly = $("freeOnly"), classFilter = $("classFilter");
+let spinning = false, timers = [], intervals = [];
+
+/* Lampen */
+const lampsBox = $("lamps");
+for (let i = 0; i < 14; i++) lampsBox.appendChild(Object.assign(document.createElement("div"), { className: "lamp" }));
+const lamps = [...document.querySelectorAll(".lamp")];
+let lampTimer = null;
+function animateLamps(active) {
+  clearInterval(lampTimer);
+  if (!active) { lamps.forEach(l => l.classList.remove("on")); return; }
+  let i = 0;
+  lampTimer = setInterval(() => { lamps.forEach(l => l.classList.remove("on")); lamps[i % lamps.length].classList.add("on"); i++; }, 90);
+}
+
+/* Klassen-Filter füllen */
+(function () {
+  const classes = [...new Set(CARS.map(c => c[1]))].sort((a, b) => a.localeCompare(b, "de"));
+  classes.forEach(c => classFilter.appendChild(new Option(c, c)));
+})();
+
+function pool() {
+  let cars = CARS;
+  if (freeOnly.checked) cars = cars.filter(c => c[2] === 1);
+  const cls = classFilter.value;
+  if (cls) cars = cars.filter(c => c[1] === cls);
+  let tracks = freeOnly.checked ? TRACKS.filter(t => t[2] === 1) : TRACKS;
+  if (!cars.length || !tracks.length) return null;
+  return { cars, tracks };
+}
+
+function tickSound(freq) {
+  try {
+    const ctx = tickSound.ctx || (tickSound.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "triangle"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.25);
+  } catch (e) {}
+}
+
+function spinReel(key, candidates, final, sub, delay) {
+  reels[key].classList.add("spin");
+  reels[key].classList.remove("won");
+  const iv = setInterval(() => {
+    const r = candidates[Math.floor(Math.random() * candidates.length)];
+    vals[key].textContent = typeof r === "string" ? r : r[0];
+  }, 70);
+  intervals.push(iv);
+  const t = setTimeout(() => {
+    clearInterval(iv);
+    reels[key].classList.remove("spin");
+    reels[key].classList.add("won");
+    vals[key].textContent = final;
+    subs[key].textContent = sub || "";
+    tickSound(520 + 120 * Object.keys(reels).indexOf(key));
+  }, delay);
+  timers.push(t);
+}
+
+function draw() {
+  const p = pool();
+  if (!p) { result.textContent = "Keine passenden Inhalte – bitte Filter anpassen."; return; }
+  const car = p.cars[Math.floor(Math.random() * p.cars.length)];
+  const track = p.tracks[Math.floor(Math.random() * p.tracks.length)];
+  const layout = track[1][Math.floor(Math.random() * track[1].length)];
+
+  spinning = true;
+  lever.disabled = true;
+  result.textContent = "";
+  animateLamps(true);
+
+  spinReel("car", p.cars, car[0], car[1] + (car[2] ? " · GRATIS" : ""), 1400);
+  spinReel("track", p.tracks, track[0], (track[2] ? "GRATIS · " : "") + "max. " + track[3] + " Fzg.", 2000);
+  spinReel("layout", track[1], layout, track[1].length > 1 ? "von " + track[1].length + " Layouts" : "ein Layout", 2600);
+
+  const done = setTimeout(() => {
+    spinning = false;
+    lever.disabled = false;
+    animateLamps(false);
+    lamps[0].classList.add("on");
+    result.textContent = "Ergebnis: " + car[0] + " auf " + track[0] + (track[1].length > 1 ? " – " + layout : "");
+    const li = document.createElement("li");
+    li.innerHTML = "<b>" + car[0] + "</b> (" + car[1] + ") auf <b>" + track[0] + "</b>" + (track[1].length > 1 ? " – " + layout : "");
+    historyList.prepend(li);
+    while (historyList.children.length > 5) historyList.removeChild(historyList.lastChild);
+  }, 2700);
+  timers.push(done);
+}
+
+function cleanup() { timers.forEach(clearTimeout); intervals.forEach(clearInterval); timers = []; intervals = []; }
+
+lever.addEventListener("click", () => { if (!spinning) { cleanup(); draw(); } });
+
+/* Anfangszustand */
+lamps[0].classList.add("on");
+subs.layout.textContent = "wird gezogen";
+
+/* ================= MODUSWECHSEL: EINZELRENNEN / MEISTERSCHAFT ================= */
+
+const tabSingle = $("tabSingle"), tabChamp = $("tabChamp");
+const panelSingle = $("panelSingle"), panelChamp = $("panelChamp");
+
+function showTab(which) {
+  const champ = which === "champ";
+  tabChamp.classList.toggle("active", champ);
+  tabSingle.classList.toggle("active", !champ);
+  panelChamp.style.display = champ ? "block" : "none";
+  panelSingle.style.display = champ ? "none" : "block";
+  lamps.forEach((l, i) => l.classList.toggle("on", !champ && i === 0));
+  if (!champ) { animateLamps(false); lamps[0].classList.add("on"); }
+}
+tabSingle.addEventListener("click", () => showTab("single"));
+tabChamp.addEventListener("click", () => showTab("champ"));
+
+/* Meisterschaft generieren */
+const champBtn = $("champBtn");
+champBtn.addEventListener("click", () => {
+  const mode = $("champMode").value;
+  const numClasses = mode === "multi" ? parseInt($("champNumClasses").value, 10) : 1;
+  let races = parseInt($("champRaces").value, 10);
+  if (isNaN(races)) races = 6;
+  races = Math.max(1, Math.min(24, races));
+  $("champRaces").value = races;
+  const maxCars = $("champMaxCars").value === "auto"
+    ? null : parseInt($("champMaxCars").value, 10);
+  const freeOnlyChamp = $("champFreeOnly").checked;
+
+  let cars = freeOnlyChamp ? CARS.filter(c => c[2] === 1) : CARS;
+  let tracks = freeOnlyChamp ? TRACKS.filter(t => t[2] === 1) : TRACKS;
+
+  if (tracks.length < races) races = tracks.length;
+
+  /* Klassen mit ausreichend Fahrzeugen sammeln */
+  const byClass = {};
+  cars.forEach(c => { (byClass[c[1]] = byClass[c[1]] || []).push(c); });
+  let classes = Object.keys(byClass).sort((a, b) => a.localeCompare(b, "de"));
+  if (mode === "multi") {
+    /* Nur Klassen mit mindestens 3 Fahrzeugen sind für Multi Class sinnvoll */
+    const eligible = classes.filter(c => byClass[c].length >= 2);
+    classes = eligible.sort(() => Math.random() - 0.5).slice(0, numClasses);
+  } else {
+    classes = [classes[Math.floor(Math.random() * classes.length)]];
+  }
+  if (!classes.length) {
+    $("champField").innerHTML = "";
+    $("champCalendar").innerHTML = "<li>Keine passenden Inhalte – bitte Reglement anpassen.</li>";
+    return;
+  }
+
+  /* Rennkalender: eindeutige Strecken, zufälliges Layout pro Rennen */
+  const picked = tracks.slice().sort(() => Math.random() - 0.5).slice(0, races);
+
+  /* Kapazität: maßgeblich ist die kleinste Startbox des Kalenders */
+  const minGrid = Math.min.apply(null, picked.map(t => t[3]));
+
+  /* Startfeld: pro Klasse auto. aus Kapazität ableiten oder feste Obergrenze */
+  const perClassAuto = Math.max(1, Math.floor(minGrid / classes.length));
+  $("champField").innerHTML = classes.map(cls => {
+    const cap = maxCars === null ? perClassAuto : maxCars;
+    let list = byClass[cls].slice().sort(() => Math.random() - 0.5).slice(0, cap).sort((a, b) => a[0].localeCompare(b[0], "de"));
+    return '<div class="classrow"><span class="cls">' + cls.toUpperCase() + '</span><b>' +
+      list.length + ' Fahrzeuge:</b> ' + list.map(c => c[0]).join(", ") + '</div>';
+  }).join("") +
+    '<div class="classrow" style="text-align:center;color:#b9bcc2;">Kleinste Streckenkapazität im Kalender: <b style="color:#fff;">' +
+    minGrid + ' Fahrzeuge</b> – entspricht bei ' + classes.length + ' Klasse(n) ca. <b style="color:#fff;">' +
+    perClassAuto + ' Fahrzeug(en) pro Klasse</b></div>';
+
+  $("champCalendar").innerHTML = picked.map((t, i) => {
+    const layout = t[1][Math.floor(Math.random() * t[1].length)];
+    return "<li><span class='round'>" + (i + 1) + ".</span><b>" + t[0] + "</b>" +
+      (t[1].length > 1 ? " – " + layout : "") +
+      " <span style='color:#9a9da2;'>(max. " + t[3] + " Fzg.)</span>" +
+      (t[2] ? ' <span class="cls">GRATIS</span>' : "") + "</li>";
+  }).join("");
+
+  tickSound(660);
+  setTimeout(() => tickSound(880), 150);
+});
+</script>
+</body>
+</html>
